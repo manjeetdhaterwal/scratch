@@ -1,5 +1,5 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react'
-import { Download, Moon, Plus, Settings, Sun, Trash2, Upload } from 'lucide-react'
+import { Moon, Plus, Settings, Share2, Sun, Trash2, Upload } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import Dialog from '../components/Dialog'
 import CategoryCard from '../components/GroupCard'
@@ -68,13 +68,47 @@ export default function Groups() {
     }
   }
 
-  const downloadBackup = () => {
-    const blob = new Blob([exportBackup()], { type: 'application/json' })
+  const downloadBackupFile = (file: File) => {
     const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `scratch-backup-${new Date().toISOString().slice(0, 10)}.json`
+    const href = URL.createObjectURL(file)
+    link.href = href
+    link.download = file.name
+    link.hidden = true
+    document.body.appendChild(link)
     link.click()
-    URL.revokeObjectURL(link.href)
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(href), 1000)
+  }
+
+  const shareBackup = async () => {
+    const file = new File(
+      [exportBackup()],
+      `Scratch-backup-${new Date().toISOString().slice(0, 10)}.scratch.txt`,
+      { type: 'text/plain' },
+    )
+
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({
+          title: 'Scratch backup',
+          text: 'Scratch categories backup',
+          files: [file],
+        })
+        return
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+      }
+    }
+
+    downloadBackupFile(file)
+  }
+
+  const openSettings = () => {
+    setSettingsOpen(true)
+  }
+
+  const closeSettings = () => {
+    setSettingsOpen(false)
   }
 
   const importFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -82,7 +116,7 @@ export default function Groups() {
     if (!file) return
     try {
       const success = await importBackup(JSON.parse(await file.text()))
-      if (success) setSettingsOpen(false)
+      if (success) closeSettings()
     } catch {
       await importBackup(null)
     }
@@ -98,7 +132,7 @@ export default function Groups() {
             <span>New category</span>
             <span className="category-theme-dots" aria-hidden="true"><i /><i /><i /><i /></span>
           </button>
-          <button className="icon-button" onClick={() => setSettingsOpen(true)} aria-label="Open settings"><Settings size={21} /></button>
+          <button className="icon-button" onClick={openSettings} aria-label="Open settings"><Settings size={21} /></button>
         </div>
       </header>
 
@@ -150,7 +184,7 @@ export default function Groups() {
         <p className="dialog-message">This will permanently remove “{modal?.type === 'delete' ? modal.category.name : ''}” and all of its items and images.</p>
       </Dialog>
 
-      <Dialog open={settingsOpen} title="Settings" onClose={() => setSettingsOpen(false)} sheet>
+      <Dialog open={settingsOpen} title="Settings" onClose={closeSettings} sheet>
         <div className="appearance-setting">
           <span className="field-label">Appearance</span>
           <div className="appearance-options" role="radiogroup" aria-label="Appearance">
@@ -163,8 +197,8 @@ export default function Groups() {
           </div>
         </div>
         <p className="settings-copy">Keep a copy of your categories and images, or restore them on another device.</p>
-        <button className="settings-action" type="button" onClick={downloadBackup}><Download size={20} /><span><strong>Export backup</strong><small>Download all data as JSON</small></span></button>
-        <label className="settings-action file-action"><Upload size={20} /><span><strong>Import backup</strong><small>Replace current data from JSON</small></span><input type="file" accept="application/json,.json" onChange={importFile} /></label>
+        <button className="settings-action" type="button" onClick={() => void shareBackup()}><Share2 size={20} /><span><strong>Export or share backup</strong><small>Save to Files, Drive, or Downloads</small></span></button>
+        <label className="settings-action file-action"><Upload size={20} /><span><strong>Import backup file</strong><small>Choose a Scratch text or JSON backup</small></span><input type="file" accept="text/plain,application/json,.txt,.json,.scratch" onChange={importFile} /></label>
         <button className="settings-action destructive-action" type="button" onClick={() => setClearAllOpen(true)}><Trash2 size={20} /><span><strong>Clear whole app data</strong><small>Delete every category, item, and image</small></span></button>
         <p className="settings-note">All data is stored in this browser using IndexedDB.</p>
       </Dialog>
