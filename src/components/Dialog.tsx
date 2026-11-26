@@ -15,14 +15,24 @@ type DialogProps = {
 export default function Dialog({ open, title, children, onClose, onSubmit, submitLabel = 'Save', danger, sheet }: DialogProps) {
   const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   useEffect(() => {
     if (!open) return
-    const onKeyDown = (event: KeyboardEvent) => event.key === 'Escape' && onClose()
+    const onKeyDown = (event: KeyboardEvent) => event.key === 'Escape' && onCloseRef.current()
     document.addEventListener('keydown', onKeyDown)
-    requestAnimationFrame(() => panelRef.current?.querySelector<HTMLElement>('input, button')?.focus())
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose, open])
+    const frame = requestAnimationFrame(() => {
+      const panel = panelRef.current
+      const field = panel?.querySelector<HTMLElement>('input:not([type="hidden"]):not([type="file"]):not([disabled]), textarea:not([disabled]), select:not([disabled])')
+      const fallback = panel?.querySelector<HTMLElement>('button:not([disabled])')
+      ;(field ?? fallback)?.focus()
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
 
   if (!open) return null
   const content = (
